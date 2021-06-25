@@ -55,9 +55,12 @@ extern crate alloc;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+mod function;
 mod wave;
 mod waveform;
+mod macros;
 
+pub use function::{Function, Sine, Rectangular, Triangle};
 pub use wave::{Wave, WaveIterator};
 pub use waveform::{Waveform, WaveformIterator};
 

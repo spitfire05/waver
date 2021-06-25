@@ -14,30 +14,27 @@
 
 //! A module for wave types and iterators.
 
+use alloc::rc::Rc;
 use core::{
-    f32::consts::PI,
     fmt,
     iter::{IntoIterator, Iterator},
 };
-use libm::sinf;
+
+use crate::{function::Sine, Function};
 
 /// A structure that represent a sinusoidal wave.
 ///
 /// The default value for a wave values is 0.0 except for the amplitude weight
 /// which is 1.0 (100% of available amplitude).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone)]
 pub struct Wave {
     /// The sampling rate of this wave.
     pub sample_rate: f32,
 
-    /// The frequency of this wave.
-    pub frequency: f32,
-
-    /// The phase of this wave.
-    pub phase: f32,
-
     /// The amplitude as a percentage [0.0 - 1.0].
     pub amplitude: f32,
+
+    pub function: Rc<dyn Function>,
 }
 
 impl Wave {
@@ -79,9 +76,8 @@ impl Default for Wave {
     fn default() -> Self {
         Self {
             sample_rate: 0.0,
-            frequency: 0.0,
-            phase: 0.0,
             amplitude: 1.0,
+            function: Rc::new(Sine::default()),
         }
     }
 }
@@ -90,8 +86,19 @@ impl fmt::Display for Wave {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "<Freq: {}Hz, Ampl: {}, Sampling Freq: {}Hz>",
-            self.frequency, self.amplitude, self.sample_rate
+            "<{}, Sampling Freq: {}Hz>",
+            self.function, self.sample_rate
+        )
+    }
+}
+
+impl fmt::Debug for Wave {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: find out the proper `Debug` format
+        write!(
+            f,
+            "<{}, Sampling Freq: {}Hz>",
+            self.function, self.sample_rate
         )
     }
 }
@@ -121,37 +128,35 @@ impl<'a> Iterator for WaveIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let t = self.index_inc() / self.inner.sample_rate;
 
-        Some(self.inner.amplitude * sinf(2.0 * PI * t * self.inner.frequency + self.inner.phase))
+        Some(self.inner.amplitude * self.inner.function.sample(t))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use core::f32::consts::PI;
+
+    use crate::{sine, wave};
+
     use super::*;
     use alloc::vec::Vec;
 
-    #[test]
-    fn test_wave_default() {
-        let wave: Wave = Default::default();
+    // #[test]
+    // fn test_wave_default() {
+    //     let wave: Wave = Default::default();
 
-        assert_eq!(
-            wave,
-            Wave {
-                sample_rate: 0.0,
-                frequency: 0.0,
-                phase: 0.0,
-                amplitude: 1.0
-            }
-        );
-    }
+    //     assert_eq!(
+    //         wave,
+    //         Wave {
+    //             sample_rate: 0.0,
+    //             function:: Rc::new(Sine {  })
+    //         }
+    //     );
+    // }
 
     #[test]
     fn test_wave_iteration() {
-        let wave = Wave {
-            sample_rate: 500.0,
-            frequency: 130.0,
-            ..Default::default()
-        };
+        let wave = wave!(500.0, 1.0, sine!(130.0, 0.0));
         let res: Vec<f32> = wave.iter().take(1001).collect();
 
         // It must start from the point of origin.
@@ -165,8 +170,7 @@ mod tests {
     fn test_wave_phase_shift() {
         let wave = Wave {
             sample_rate: 500.0,
-            frequency: 120.0,
-            phase: PI / 2.0,
+            function: Rc::new(Sine::new(120.0, PI / 2.0)),
             ..Default::default()
         };
         let res: Vec<f32> = wave.iter().take(5).collect();

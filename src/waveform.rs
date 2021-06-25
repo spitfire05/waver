@@ -174,17 +174,21 @@ impl<'a, BitDepth: Bounded + NumCast + AsPrimitive<f32>> Iterator
 
 #[cfg(test)]
 mod tests {
+    use alloc::rc::Rc;
+
+    use crate::{Rectangular, function::Sine, function::Triangle, triangle, wave};
+
     use super::*;
-    use core::i16;
+    use core::i16::{self, MAX, MIN};
 
     #[test]
     fn test_waveform_single_wave_match() {
         let w3khz = Wave {
             sample_rate: 44100.0,
-            frequency: 3000.0,
+            function: Rc::new(Sine::new(3000.0, 0.0)),
             ..Default::default()
         };
-        let wf = Waveform::<i16>::with_wave(44100.0, w3khz);
+        let wf = Waveform::<i16>::with_wave(44100.0, w3khz.clone());
 
         let w1: Vec<i16> = wf.iter().take(100).collect();
         let w2: Vec<i16> = w3khz
@@ -208,7 +212,7 @@ mod tests {
         let wf1 = Waveform::<i16>::with_wave(
             44100.0,
             Wave {
-                frequency: 3400.0,
+                function: Rc::new(Sine::new(3400.0, 0.0)),
                 amplitude: 1.0,
                 ..Default::default()
             },
@@ -218,7 +222,7 @@ mod tests {
         let v1: Vec<i16> = wf1.iter().take(100).collect();
         let v2: Vec<i16> = wf2
             .superpose(Wave {
-                frequency: 3400.0,
+                function: Rc::new(Sine::new(3400.0, 0.0)),
                 ..Default::default()
             })
             .iter()
@@ -233,13 +237,13 @@ mod tests {
         let mut wf = Waveform::<i16>::with_wave(
             44100.0,
             Wave {
-                frequency: 4000.0,
+                function: Rc::new(Sine::new(4000.0, 0.0)),
                 amplitude: 1.5,
                 ..Default::default()
             },
         );
         wf.superpose(Wave {
-            frequency: 5000.0,
+            function: Rc::new(Sine::new(5000.0, 0.0)),
             amplitude: 0.5,
             ..Default::default()
         })
@@ -255,14 +259,14 @@ mod tests {
         let mut wf = Waveform::<i16>::with_wave(
             44100.0,
             Wave {
-                frequency: 4000.0,
+                function: Rc::new(Sine::new(5000.0, 0.0)),
                 amplitude: 1.0,
                 ..Default::default()
             },
         );
         let v: Vec<i16> = wf
             .superpose(Wave {
-                frequency: 5000.0,
+                function: Rc::new(Sine::new(5000.0, 0.0)),
                 amplitude: 0.5,
                 ..Default::default()
             })
@@ -271,5 +275,26 @@ mod tests {
             .collect();
 
         assert_ne!(v.len(), 100);
+    }
+
+    #[test]
+    fn test_rectangular_duty_cycle() {
+        let dt = 0.1;
+        let wf = Waveform::<i16>::with_wave(1000.0, Wave {amplitude: 1.0, function: Rc::new(Rectangular::new(100.0, 0.0, dt)), ..Default::default()});
+
+        let samples: Vec<i16> = wf.iter().take(100).collect();
+
+        let highs = samples.iter().filter(|&x| *x == MAX).count() as f32;
+        let lows = samples.len() as f32 - highs;
+
+        assert_eq!(dt, (highs / lows) / 2.0)
+    }
+
+    #[test]
+    fn test_triangle() {
+        let wf = Waveform::<i16>::with_wave(1000.0, wave!(triangle!(100.0)));
+
+        let samples: Vec<i16> = wf.iter().take(1000).collect();
+        samples.leak();
     }
 }
